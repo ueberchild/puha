@@ -8,7 +8,7 @@ function load_calendar(cname) {
     tbl.innerHTML = '<a href="' + cname + '">Расписание здесь</a>'
     xhr.onreadystatechange = function() {
         if (this.readyState == 4) {
-            if (!this.responseText === 'undefined')
+            if (this.responseText)
                 tbl.innerHTML = this.responseText;
         }
     }

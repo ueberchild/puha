@@ -203,7 +203,7 @@ def lecturer_is_free(name, datet, time):
     
     return True
 
-def read_docx_tables(filename, **kwargs):
+def read_docx_tables(fname, **kwargs):
     def read_docx_tab(tab, **kwargs):
         vf = io.StringIO()
         writer = csv.writer(vf)
@@ -212,7 +212,7 @@ def read_docx_tables(filename, **kwargs):
         vf.seek(0)
         return pd.read_csv(vf, **kwargs)
     
-    return [read_docx_tab(tab, **kwargs) for tab in docx.Document(filename).tables]
+    return [read_docx_tab(tab, **kwargs) for tab in docx.Document(fname).tables]
 
 def uniqify(seq):
     seen = set()
