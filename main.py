@@ -4,7 +4,7 @@
 # if platform.system() == 'Windows': os.system('doc_to_docx.bat')
 # else: os.system('bash doc_to_docx.sh')
 
-import pandas as pd, re, openpyxl, io, csv, calendar, docx, datetime, difflib, os
+import pandas as pd, re, io, csv, calendar, docx, datetime, difflib, os
 
 YEAR = 2020
 
@@ -203,7 +203,7 @@ def lecturer_is_free(name, datet, time):
     
     return True
 
-def read_docx_tables(filename, tab_id=None, **kwargs):
+def read_docx_tables(filename, **kwargs):
     def read_docx_tab(tab, **kwargs):
         vf = io.StringIO()
         writer = csv.writer(vf)
