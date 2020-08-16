@@ -361,8 +361,7 @@ for c in currics:
     docx_tables[1] = pd.concat(list(map(lambda d: d.rename(columns=lambda c: c.strip()), docx_tables[1:])), ignore_index = True)
     c.plan, c.calendar = list(map(lambda d: d.apply(lambda x: x.str.strip() if x.dtype == "object" else x), docx_tables[:2]))
     c.pick_lecturers_and_auditories()
-    try: os.mkdir('calendars')
-    except FileExistsError: pass
+    if not os.path.isdir('calendars'): os.mkdir('calendars')
     c_starting = c.days[0].strftime("%x").replace('/', '.')
     c_name = 'calendars/' + c_starting + ' ' + docx_dict[c.theme[0]].replace('docx', 'html')
     ready_currics.append((c_name, c.theme[0] + ' ' + c_starting))
