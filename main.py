@@ -347,6 +347,7 @@ for k in disciplines_dict:
 
 ready_currics = []
 
+if not os.path.isdir('calendars'): os.mkdir('calendars')
 for c in currics:
     if c.specialization not in disciplines_dict: continue
     if len(disciplines_dict[c.specialization]) == 0:
@@ -361,10 +362,9 @@ for c in currics:
     docx_tables[1] = pd.concat(list(map(lambda d: d.rename(columns=lambda c: c.strip()), docx_tables[1:])), ignore_index = True)
     c.plan, c.calendar = list(map(lambda d: d.apply(lambda x: x.str.strip() if x.dtype == "object" else x), docx_tables[:2]))
     c.pick_lecturers_and_auditories()
-    if not os.path.isdir('calendars'): os.mkdir('calendars')
-    c_starting = c.days[0].strftime("%x").replace('/', '.')
-    c_name = 'calendars/' + c_starting + ' ' + docx_dict[c.theme[0]].replace('docx', 'html')
-    ready_currics.append((c_name, c.theme[0] + ' ' + c_starting))
+    c_time = c.days[0].strftime("%x").replace('/', '.') + '-' + c.days[-1].strftime("%x").replace('/', '.')
+    c_name = 'calendars/' + docx_dict[c.theme[0]].replace('.docx', c_time + '.html')
+    ready_currics.append((c_name, c.theme[0] + ' ' + c_time))
     with open(c_name, 'w') as f:
         _=f.write(c.calendar.to_html(index = False).replace("\\n", "<br>"))
 
