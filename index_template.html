@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+/>
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <script>
 function load_calendar(cname) {
     var tbl = document.getElementById('db'),
@@ -19,9 +24,13 @@ function load_calendar(cname) {
 </script>
 </head>
 <body>
-<select name="city" id="city" onChange="load_calendar(this.value)">
+<select class="form-control" data-trigger name="choices-single-default" id="choices-single-default" onChange="load_calendar(this.value)">
     <!-- select options -->
 </select>
 <div id="db"></div>
 </body>
+<script>
+const element = document.querySelector('#choices-single-default');
+const choices = new Choices(element);
+</script>
 </html>

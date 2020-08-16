@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+/>
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <script>
 function load_calendar(cname) {
     var tbl = document.getElementById('db'),
@@ -19,7 +24,7 @@ function load_calendar(cname) {
 </script>
 </head>
 <body>
-<select name="city" id="city" onChange="load_calendar(this.value)">
+<select class="form-control" data-trigger name="choices-single-default" id="choices-single-default" onChange="load_calendar(this.value)">
     <option value="calendars/Программа начальной подготовки «Предполетный досмотр пассажиров, членов ...01.13.20-01.17.20.html">Программа начальной подготовки "Предполётный досмотр пассажиров, членов экипажей гражданских судов, обслуживающего персонала, ручной клади, багажа, грузов, почты и бортовых запасов" 01.13.20-01.17.20</option>
     <option value="calendars/Перевозка опасных грузов воздушным транспортом. 10 категория ИКАО-ИАТА. Базовый курс01.13.20-01.14.20.html">Программа повышения квалификации "Перевозка опасных грузов воздушным транспортом. 10 категория ИКАО/ИАТА. Базовый курс" 01.13.20-01.14.20</option>
     <option value="calendars/Перевозка опасных грузов воздушным транспортом. 10 категория ИКАО-ИАТА01.15.20-01.16.20.html">Программа повышения квалификации "Перевозка опасных грузов воздушным транспортом. 10 категория ИКАО/ИАТА" 01.15.20-01.16.20</option>
@@ -142,4 +147,8 @@ function load_calendar(cname) {
 </select>
 <div id="db"></div>
 </body>
+<script>
+const element = document.querySelector('#choices-single-default');
+const choices = new Choices(element);
+</script>
 </html>
