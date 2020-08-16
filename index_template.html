@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+function load_calendar(cname) {
+  var tbl = document.getElementById('db');
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (this.readyState == 4) tbl.innerHTML = this.responseText;
+  }
+  xhr.open('GET', 'calendars/' + cname);
+  xhr.send();
+  return;
+}
+</script>
+</head>
+<body>
+<div id="db"></div>
+<select name="city" id="city" onChange="load_calendar(this.value)">
+    <!-- select options -->
+</select>
+</body>
+</html>

@@ -4,7 +4,7 @@
 # if platform.system() == 'Windows': os.system('doc_to_docx.bat')
 # else: os.system('bash doc_to_docx.sh')
 
-import pandas as pd, re, openpyxl, io, csv, calendar, docx, datetime
+import pandas as pd, re, openpyxl, io, csv, calendar, docx, datetime, difflib, os
 
 YEAR = 2020
 
@@ -16,112 +16,141 @@ class curric:
         self.days = []
         
         day, month = time_borders[0].split('.')
-        sdate = datetime.date(YEAR, month, day)
+        sdate = datetime.date(YEAR, int(month), int(day))
         day, month = time_borders[1].split('.')
-        edate = datetime.date(YEAR, month, day)
+        edate = datetime.date(YEAR, int(month), int(day))
         delta = edate - sdate
         for i in range(delta.days + 1):
             self.days.append(sdate + datetime.timedelta(days = i))
+        self.days = tuple(self.days)
+    
+    def __hash__(self):
+        return hash((self.program_type, self.days, self.personnel_type, self.specialization))
     
     def __eq__(self, other):
         return self.program_type == other.program_type and \
-               self.time_borders == other.time_borders and \
+               self.days == other.days and \
                self.personnel_type == other.personnel_type and \
                self.specialization == other.specialization
     
     def pick_lecturers_and_auditories(self):
         self.lecturers = []
         self.auditories = []
-        for _, pair in self.calendar.iterrows():
+        for pair in self.calendar.index:
             pair_lecturers = []
             pair_auditories = []
             theory_pair = False
             practice_pair = False
-            for t in pair['Тема'].split('\n'):
-                if self.plan[self.plan['Наименование разделов и тем'] == t].iloc[0, 3] != '–':
+            pair_theme = self.calendar.loc[pair, 'Тема']
+            if type(pair_theme) != str: continue
+            pair_time  = self.calendar.loc[pair, 'Время']
+            for t in pair_theme.split('\n'):
+                plan_theme = difflib.get_close_matches(t, self.plan['Наименование разделов и тем'], cutoff = 0, n = 1)[0]
+                if not self.plan[self.plan['Наименование разделов и тем'] == plan_theme].iloc[0, 3] in ('–', '-'):
                     theory_pair = True
-                if self.plan[self.plan['Наименование разделов и тем'] == t].iloc[0, 4] != '–':
+                if not self.plan[self.plan['Наименование разделов и тем'] == plan_theme].iloc[0, 4] in ('–', '-'):
                     practice_pair = True
-            pair_day = self.days[0] + datetime.timedelta(days = pair['День'] - 1)
+            pair_day = self.days[0] + datetime.timedelta(days = int(self.calendar.loc[pair, 'День'] - 1))
             
             lecturer_candidates = []
-            for _, l in lecturers_pars.iterrows():
-                if not str(self.theme[1]) in l['Учебные программы'].split(';'):
+            for l in lecturers_pars.index:
+                l_themes = lecturers_pars.loc[l, 'Может проводить занятия по темам']
+                if type(lecturers_pars.loc[l, 'Учебные программы']) == int:
+                    l_curs = [lecturers_pars.loc[l, 'Учебные программы'],]
+                else:
+                    l_curs = lecturers_pars.loc[l, 'Учебные программы'].split(';')
+                if not str(self.theme[1]) in l_curs:
                     continue
-                if not lecturer_is_free(l['Преподаватель'], pair_day, pair['Время']):
+                if not lecturer_is_free(l, pair_day, pair_time):
                     continue
                 terror_theme = False
-                if self.theme[1] == 34 and re.search('Тема 4', pair['Тема']) or self.theme[1] == 35 and re.search('Тема 8', pair['Тема']):
+                if self.theme[1] == 34 and re.search('Тема\s*4', pair_theme) or self.theme[1] == 35 and re.search('Тема\s*8', pair_theme):
                     terror_theme = True   
-                if 'за исключением тем с 4 раздела в программе 34 и  тем с раздела 8 в программе 35' in l['Может проводить занятия по темам']\
+                if 'за исключением тем с 4 раздела в программе 34 и  тем с раздела 8 в программе 35' in l_themes\
                     and terror_theme: continue
-                if 'только разделы с 4 по программе 34, разделы с 8 на программе 35' in l['Может проводить занятия по темам']\
+                if 'только разделы с 4 по программе 34, разделы с 8 на программе 35' in l_themes\
                     and not terror_theme: continue
-                if self.theme[1] == 31 and 'темы № 8.7  в программе 31,а так же раздела 5' in l['Может проводить занятия по темам']\
-                    and (re.search('Тема 8.7', pair['Тема']) or re.search('Тема 5', pair['Тема'])): continue
-                l_priority = l['Приоритет при распределении']
-                if not l_priority or l_priority in ('нет', 'в рабочие смены', 'необходим выходной после каждого второго рабочего дня'):
-                    l_priority = 1.5
+                if self.theme[1] == 31 and 'темы № 8.7  в программе 31,а так же раздела 5' in l_themes\
+                    and (re.search('Тема\s*8.7', pair_theme) or re.search('Тема\s*5', pair_theme)): continue
+                l_priority = lecturers_pars.loc[l, 'Приоритет при распределении']
+                if type(l_priority) == int:
+                    pass
                 elif l_priority == 'при распределении на программы 7 и 8 - приоритет 1' and self.theme[1] in (7, 8) or\
                      l_priority == 'при распределении на программы 11 и 12- приоритет 1' and self.theme[1] in (11, 12):
                     l_priority = 1
+                elif l_priority == 'при распределении на программы 11;12 приоритет 2' and self.theme[1] in (11, 12) or\
+                     l_priority == 'если заняты преподаватели Монахов Г.П., Умняшкин О.В., Щеглов А.В., Морозов Д.В':
+                    l_priority = 2
                 elif l_priority == '1 - на теоретические занятия, 2 - на практические':
                     if theory_pair: l_priority = 1
-                    else l_priority = 2
+                    else: l_priority = 2
                 elif l_priority == '1- на практические занятия, 2 на теоретические':
                     if practice_pair: l_priority = 1
-                    else l_priority = 2
+                    else: l_priority = 2
                 elif l_priority == 'если нет других свободных преподавателей':
                     l_priority = 4
-                else:
-                    l_priority = int(l_priority)
-                lecturer_candidates.append((l['Преподаватель'], l_priority))
+                else: # ('нет', 'в рабочие смены', 'необходим выходной после каждого второго рабочего дня') and others
+                    l_priority = 1.5
+                lecturer_candidates.append((l, l_priority))
             
-            lecturer_candidates.sort(key = lambda x: x[1])
-            chosen_lecturer = lecturer_candidates[0][0]
-            if not pair_day in lecturer_busy[chosen_lecturer]:
-                lecturer_busy[chosen_lecturer][pair_day] = []
-            lecturer_busy[chosen_lecturer][pair_day].append(pair['Время'])
+            
+            if len(lecturer_candidates) == 0:
+                chosen_lecturer = '?'
+            else:
+                lecturer_candidates.sort(key = lambda x: x[1])
+                chosen_lecturer = lecturer_candidates[0][0]
+                if not pair_day in lecturer_busy[chosen_lecturer]:
+                    lecturer_busy[chosen_lecturer][pair_day] = []
+                lecturer_busy[chosen_lecturer][pair_day].append(pair_time)
             pair_lecturers.append(chosen_lecturer)
-            self.lecturers.append(pair_lecturers)
+            self.lecturers.append('\n'.join(pair_lecturers))
             
             auditory_candidates = []
-            for _, a in auditory_pars.iterrows():
-                if pair_day in auditory_busy[name] and time in auditory_busy[l][day]:
-                if theory_pair and not 'теоретические' in a['Вид занятий'] or \
-                 practice_pair and not 'практические'  in a['Вид занятий']:
+            for a in auditory_pars.index:
+                a_suitable = auditory_pars.loc[a, 'Подходит для дисциплин']
+                a_prioritized = auditory_pars.loc[a, 'Преимущество у дисциплины']
+                if pair_day in auditory_busy[a] and pair_time in auditory_busy[a][pair_day]:
                     continue
-                if a['Подходит для дисциплин'] == 'кроме Подготовка преподавателей АУЦ' and self.theme[1] in (5, 6):
+                if theory_pair and not 'теоретические' in auditory_pars.loc[a, 'Вид занятий'] or \
+                 practice_pair and not 'практические'  in auditory_pars.loc[a, 'Вид занятий']:
                     continue
-                if a['Подходит для дисциплин'] == 'Авиационная безопасность, \nтолько для практических занятий по программам №30, 31 и 32' \
+                if a_suitable == 'кроме Подготовка преподавателей АУЦ' and self.theme[1] in (5, 6):
+                    continue
+                if a_suitable == 'Авиационная безопасность, \nтолько для практических занятий по программам №30, 31 и 32' \
                     and not (practice_pair and self.theme[1] in (30, 31, 32)):
                     continue
                 if self.theme[0] == 'Аварийно-спасательное обеспечение полетов' and\
-                     a['Подходит для дисциплин'] != 'Аварийно-спасательное обеспечение полетов':
+                     a_suitable != 'Аварийно-спасательное обеспечение полетов':
                     continue
                 if self.theme[0] != 'Аварийно-спасательное обеспечение полетов' and\
-                     a['Подходит для дисциплин'] == 'Аварийно-спасательное обеспечение полетов':
+                     a_suitable == 'Аварийно-спасательное обеспечение полетов':
                     continue
-                if a['Подходит для дисциплин'] == 'Организация наземного обслуживания;\nЦентровка и контроль загрузки' and\
-                     not self.theme[1] in (1, 2, 15, 16)
+                if a_suitable == 'Организация наземного обслуживания;\nЦентровка и контроль загрузки' and\
+                     not self.theme[1] in (1, 2, 15, 16):
                      continue
-                if a['Подходит для дисциплин'] == 'Водители; ПОЗ ВС' and not 17 <= self.theme[1] <= 29:
+                if a_suitable == 'Водители; ПОЗ ВС' and not 17 <= self.theme[1] <= 29:
                     continue
                 a_priority = 2
-                if a['Преимущество у дисциплины'] == 'Авиационная безопасность' and 30 <= self.theme[1] <= 39 or\
-                   a['Преимущество у дисциплины'] == 'Центровка и контроль загрузки' and self.theme[1] in (1, 2) or\
-                   a['Преимущество у дисциплины'] == 'Организация наземного обслуживания' and self.theme[1] in (15, 16) or\
-                   a['Преимущество у дисциплины'] == 'Водители' and 22 <= self.theme[1] <= 29:
+                if a_prioritized == 'Авиационная безопасность' and 30 <= self.theme[1] <= 39 or\
+                   a_prioritized == 'Центровка и контроль загрузки' and self.theme[1] in (1, 2) or\
+                   a_prioritized == 'Организация наземного обслуживания' and self.theme[1] in (15, 16) or\
+                   a_prioritized == 'Водители' and 22 <= self.theme[1] <= 29:
                     a_priority = 1
-                auditory_candidates.append(a['Аудитория'], a_priority)
+                auditory_candidates.append((a, a_priority))
             
-            auditory_candidates.sort(key = lambda x: x[1])
-            chosen_auditory = auditory_candidates[0][0]
-            if not pair_day in auditory_busy[chosen_lecturer]:
-                auditory_busy[chosen_auditory][pair_day] = []
-            auditory_busy[chosen_auditory][pair_day].append(pair['Время'])
+            if len(auditory_candidates) == 0:
+                chosen_auditory = '?'
+            else:
+                auditory_candidates.sort(key = lambda x: x[1])
+                chosen_auditory = auditory_candidates[0][0]
+                if not pair_day in auditory_busy[chosen_auditory]:
+                    auditory_busy[chosen_auditory][pair_day] = []
+                auditory_busy[chosen_auditory][pair_day].append(pair_time)
             pair_auditories.append(chosen_auditory)
-            self.auditories.append(pair_auditories)
+            self.auditories.append('\n'.join(pair_auditories))
+        
+        self.calendar.insert(loc = len(self.calendar.columns), column = 'Преподаватель', value = pd.Series(self.lecturers))
+        self.calendar.insert(loc = len(self.calendar.columns), column = 'Аудитория', value = pd.Series(self.auditories))
 
 '''
 class lecturer:
@@ -144,7 +173,7 @@ def lecturer_is_free(name, datet, time):
     if lecturers_pars.loc[name, 'График работы'] == 'сменный':
         shifts = re.findall('\d', lecturers_pars.loc[name, 'График сменности'])
         for shift in shifts:
-            shift_row = 3 + 7 * months
+            shift_row = 3 + 7 * datet.month
             if shift == '3':
                 shift_row += 1
             elif shift == '4':
@@ -185,6 +214,11 @@ def read_docx_tables(filename, tab_id=None, **kwargs):
     
     return [read_docx_tab(tab, **kwargs) for tab in docx.Document(filename).tables]
 
+def uniqify(seq):
+    seen = set()
+    seen_add = seen.add
+    return [x for x in seq if not (x in seen or seen_add(x))]
+
 '''
 def read_excel_without_invis(fname): 
     wb = openpyxl.load_workbook(fname)
@@ -215,6 +249,7 @@ for (month, col_d) in a_1.iteritems():
                     w_l_info = w_l.split('\n')
                     if len(w_l_info) == 3 and type(a_1.iloc[plan_num, 0]) == str:
                         time_borders = re.findall('\d*\.\d*', w_l_info[1].replace('..', '.'))
+                        if len(time_borders) != 2: continue
                         personnel_type = 'av' if plan_num < 6 else 'notav'
                         # if ' ' in w_l_info[2]:
                         #     auditory = w_l_info[2].split(' ')[-1]
@@ -222,20 +257,21 @@ for (month, col_d) in a_1.iteritems():
                         #     auditory = w_l_info[2].split('.')[-1]
                         currics.append(curric(w_l_info[0], time_borders, personnel_type, a_1.iloc[plan_num, 0]))
 
-currics = list(dict.fromkeys(currics)) # rm duplicates
+currics = uniqify(currics)
 
 for c in tuple(curriculum_pars.columns):
     for row in range(len(curriculum_pars)):
         if type(curriculum_pars.at[row, c]) == int:
             curriculum_pars.at[row, c] = max(0, curriculum_pars.at[row, c])
-  
-lecturers_busy = {}
-for l in lecturers_pars['Преподаватель']:
-    lecturers_busy[l] = {}
 
-auditories_busy = {}
-for a in auditory_pars['Аудитория']:
-    auditories_busy[a] = {}
+lecturer_busy = {}
+for l in lecturers_pars.index:
+    lecturer_busy[l] = {}
+
+auditory_busy = {}
+auditory_pars.index = auditory_pars.index.astype(str)
+for a in auditory_pars.index:
+    auditory_busy[a] = {}
 
 curriculum_pars['Учебная программа'] = curriculum_pars['Учебная программа'].apply(lambda x: re.sub(r'(?<=[.,])(?=[^\s])', r' ', x.strip().replace('«', '"').replace('»', '"')))
 
@@ -304,15 +340,40 @@ for k in disciplines_dict:
         disc_row_end = disc_row_start
         while True:
             disc_row_end += 1
-            if disc_row_end == len(curriculum_pars) or curriculum_pars.iloc[disc_row_end, 1] != None:
+            if disc_row_end == len(curriculum_pars) or type(curriculum_pars.iloc[disc_row_end, 1]) == str:
                 break
-        curs.append(list(curriculum_pars.iloc[disc_row_start:disc_row_end, 1]))
-    list(map(lambda x: (x[0], curriculum_pars.index[curriculum_pars.iloc[:, 2] == x[0]].tolist()[0] + 1), curs))
-    disciplines_dict[k] = curs
+        curs.extend(list(curriculum_pars.iloc[disc_row_start:disc_row_end, 2]))
+    disciplines_dict[k] = list(map(lambda x: (x, curriculum_pars.index[curriculum_pars.iloc[:, 2] == x].tolist()[0] + 1), curs))
 
-# docx2csv
+ready_currics = []
+
 for c in currics:
     if c.specialization not in disciplines_dict: continue
+    if len(disciplines_dict[c.specialization]) == 0:
+        print("Непонятно, какие программы для", c.specialization, [c.strftime("%x").replace('/', '.') for c in c.days])
+        continue
     c.theme = disciplines_dict[c.specialization].pop(0)
-    c.plan, c.calendar = read_docx_tables('data/Приложение №3 (2)/' + docx_dict[c.theme[0]])
+    disciplines_dict[c.specialization].append(c.theme) # illogical though
+    if not (c.theme[0] in docx_dict and docx_dict[c.theme[0]]): continue
+    docx_tables = read_docx_tables('data/Приложение №3 (2)/' + docx_dict[c.theme[0]])
+    docx_tables[0] = docx_tables[0].rename(columns=lambda co: co.strip()).rename(columns = {'Название разделов': 'Наименование разделов и тем',
+    '№ п/п\nНаименование разделов и тем.1': 'Наименование разделов и тем'})
+    docx_tables[1] = pd.concat(list(map(lambda d: d.rename(columns=lambda c: c.strip()), docx_tables[1:])), ignore_index = True)
+    c.plan, c.calendar = list(map(lambda d: d.apply(lambda x: x.str.strip() if x.dtype == "object" else x), docx_tables[:2]))
     c.pick_lecturers_and_auditories()
+    try: os.mkdir('calendars')
+    except FileExistsError: pass
+    c_starting = c.days[0].strftime("%x").replace('/', '.')
+    c_name = 'calendars/' + c_starting + ' ' + docx_dict[c.theme[0]].replace('docx', 'html')
+    ready_currics.append((c_name, c.theme[0] + ' ' + c_starting))
+    with open(c_name, 'w') as f:
+        _=f.write(c.calendar.to_html().replace("\\n", "<br>"))
+
+with open('index_template.html', 'r') as f:
+    index_template = f.read()
+
+index_template = index_template.replace('<!-- select options -->',\
+    '\n    '.join(['<option value="' + c[0] + '">' + c[1] + '</option>' for c in ready_currics]))
+
+with open('index.html', 'w') as f:
+    _=f.write(index_template)
