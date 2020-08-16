@@ -367,7 +367,7 @@ for c in currics:
     c_name = 'calendars/' + c_starting + ' ' + docx_dict[c.theme[0]].replace('docx', 'html')
     ready_currics.append((c_name, c.theme[0] + ' ' + c_starting))
     with open(c_name, 'w') as f:
-        _=f.write(c.calendar.to_html().replace("\\n", "<br>"))
+        _=f.write(c.calendar.to_html(index = False).replace("\\n", "<br>"))
 
 with open('index_template.html', 'r') as f:
     index_template = f.read()
